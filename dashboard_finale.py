@@ -1,47 +1,40 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import geopy
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
+import os
 
-# ----------------------
-# CONFIGURACION GENERAL
-# ----------------------
+# CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
     page_title="Delitos PBA",
-    layout="centered",
-    initial_sidebar_state="auto",
+    layout="wide",
     page_icon="📊"
 )
 
-# ----------------------
-# ESTILO VISUAL CLARO Y PROFESIONAL (DASHBOARD)
-# ----------------------
+# ESTILO VISUAL PROFESIONAL Y ADAPTATIVO
 st.markdown("""
     <style>
-    .reportview-container {
-        background-color: #ffffff;
-        padding: 2rem;
-        color: #000000;
-    }
-    h1, h2, h3 {
-        color: #000000;
+    html, body, [class*="css"]  {
+        background-color: #ffffff !important;
+        color: #000000 !important;
         font-family: 'Segoe UI', sans-serif;
     }
-    .stPlotlyChart {
-        border-radius: 10px;
-        padding: 1rem;
-        background-color: #ffffff;
-        border: 2px solid #005B96;
-        box-shadow: 0px 0px 5px rgba(0,0,0,0.05);
+    h1, h2, h3, .stMarkdown {
+        color: #000000 !important;
     }
+    .stPlotlyChart {
+        border-radius: 12px;
+        padding: 1rem;
+        border: 2px solid #007ACC;
+        background-color: #FAFAFA;
+        box-shadow: 0px 0px 6px rgba(0,0,0,0.05);
+    }
+    footer, header, #MainMenu {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# ----------------------
 # CARGA DE DATOS
-# ----------------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("snic-departamentos-anual.csv", sep=";", encoding="utf-8", on_bad_lines="skip")
@@ -50,15 +43,11 @@ def cargar_datos():
 df = cargar_datos()
 ultimo_anio = df["anio"].max()
 
-# ----------------------
-# TITULO PRINCIPAL
-# ----------------------
-st.title("Informe de Delitos en la Provincia de Buenos Aires")
+# TÍTULO
+st.markdown("## Informe de Delitos en la Provincia de Buenos Aires")
 
-# ----------------------
-# EVOLUCION ANUAL
-# ----------------------
-st.subheader("1. Evolución anual de hechos delictivos")
+# 1. EVOLUCIÓN ANUAL
+st.markdown("### 1. Evolución anual de hechos delictivos")
 evol = df.groupby("anio")["cantidad_hechos"].sum().reset_index()
 fig1 = px.line(evol, x="anio", y="cantidad_hechos", markers=True,
                title="Hechos delictivos por año",
@@ -66,10 +55,8 @@ fig1 = px.line(evol, x="anio", y="cantidad_hechos", markers=True,
                color_discrete_sequence=["#e63946"])
 st.plotly_chart(fig1, use_container_width=True)
 
-# ----------------------
-# TOP 10 DEPARTAMENTOS
-# ----------------------
-st.subheader("2. Top 10 departamentos con más delitos")
+# 2. TOP 10 DEPARTAMENTOS
+st.markdown("### 2. Top 10 departamentos con más delitos")
 df_top = df[df["anio"] == ultimo_anio].groupby("departamento_nombre")["cantidad_hechos"].sum().nlargest(10).reset_index()
 fig2 = px.bar(df_top, x="cantidad_hechos", y="departamento_nombre", orientation="h",
               title="Departamentos con más delitos",
@@ -77,20 +64,16 @@ fig2 = px.bar(df_top, x="cantidad_hechos", y="departamento_nombre", orientation=
               color_discrete_sequence=["#d7263d"])
 st.plotly_chart(fig2, use_container_width=True)
 
-# ----------------------
-# TORTA POR TIPO DE DELITO
-# ----------------------
-st.subheader("3. Principales tipos de delito")
+# 3. TORTA POR TIPO DE DELITO
+st.markdown("### 3. Principales tipos de delito")
 df_tipo = df[df["anio"] == ultimo_anio].groupby("codigo_delito_snic_nombre")["cantidad_hechos"].sum().nlargest(10).reset_index()
 fig3 = px.pie(df_tipo, values="cantidad_hechos", names="codigo_delito_snic_nombre",
               title="Top 10 tipos de delito",
               color_discrete_sequence=px.colors.sequential.Reds)
 st.plotly_chart(fig3, use_container_width=True)
 
-# ----------------------
-# EVOLUCION TOP 10 DEPARTAMENTOS
-# ----------------------
-st.subheader("4. Evolución en los departamentos más afectados")
+# 4. EVOLUCIÓN EN DEPARTAMENTOS
+st.markdown("### 4. Evolución en los departamentos más afectados")
 top10_nombres = df.groupby("departamento_nombre")["cantidad_hechos"].sum().nlargest(10).index
 df_evol = df[df["departamento_nombre"].isin(top10_nombres)]
 df_evol = df_evol.groupby(["anio", "departamento_nombre"])["cantidad_hechos"].sum().reset_index()
@@ -100,26 +83,20 @@ fig4 = px.line(df_evol, x="anio", y="cantidad_hechos", color="departamento_nombr
                color_discrete_sequence=px.colors.qualitative.Set1)
 st.plotly_chart(fig4, use_container_width=True)
 
-# ----------------------
-# MAPA DE CALOR POR CANTIDAD
-# ----------------------
-st.subheader("5. Mapa de calor de delitos (cantidad absoluta)")
-
-# Prepara datos
+# 5. MAPA DE CALOR POR CANTIDAD ABSOLUTA
+st.markdown("### 5. Mapa de calor de delitos (cantidad absoluta)")
 map_data = df[df["anio"] == ultimo_anio].groupby("departamento_nombre")["cantidad_hechos"].sum().reset_index()
 
-# Geolocalización
 geolocator = Nominatim(user_agent="pba_mapa")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 
 @st.cache_data
 def obtener_coords(df_dep):
-    import os
     coords_file = "coordenadas_departamentos.csv"
     if os.path.exists(coords_file):
         coords = pd.read_csv(coords_file)
         return df_dep.merge(coords, on="departamento_nombre", how="inner")
-    
+
     def get_coords(nombre):
         try:
             loc = geocode(f"{nombre}, Buenos Aires, Argentina")
@@ -136,7 +113,6 @@ def obtener_coords(df_dep):
 
 df_geo = obtener_coords(map_data)
 
-# Graficar mapa
 fig5 = px.scatter_mapbox(
     df_geo,
     lat="lat",
